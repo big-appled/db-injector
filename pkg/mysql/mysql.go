@@ -75,7 +75,7 @@ func (m *MYSQL) Inject() error {
 		return err
 	}
 
-	m.initTable()
+	err = m.initTable()
 	if err != nil {
 		klog.Error(err, fmt.Sprintf("failed to init table in mysql database %s, in %s", dbs[0], m.config.Host))
 		return err
