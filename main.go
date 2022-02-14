@@ -71,7 +71,7 @@ func (d *DemoOptions) BindFlags(flags *pflag.FlagSet, c *cobra.Command) {
 	flags.StringVarP(&d.Password, "password", "p", "", "password")
 	c.MarkFlagRequired("database")
 	flags.Int64VarP(&d.NumLoops, "count", "c", 0, "number of loops to execute")
-	flags.BoolVarP(&d.OverWrite, "overwrite", "o", false, "overwrite old table data")
+	flags.BoolVarP(&d.OverWrite, "overwrite", "o", true, "overwrite old table data")
 }
 
 func (d *DemoOptions) newDBConfig() *dbconfig.Config {

@@ -89,8 +89,14 @@ func (m *MYSQL) Inject() error {
 	klog.Info(fmt.Sprintf("total cycle is: %d", totalLoop))
 	for i = 0; i < totalLoop; i++ {
 		for _, database := range dbs {
-			m.db.Exec(fmt.Sprintf("use %s;", database))
-			m.db.Exec(fmt.Sprintf("INSERT INTO %s () VALUES ();", m.config.TableName))
+			_, err = m.db.Exec(fmt.Sprintf("use %s;", database))
+			if err != nil {
+				klog.Error(err)
+			}
+			_, err = m.db.Exec(fmt.Sprintf("INSERT INTO %s () VALUES ();", m.config.TableName))
+			if err != nil {
+				klog.Error(err)
+			}
 		}
 		timeString := time.Now().Format("2006-01-02 15:04:05")
 		klog.Info(fmt.Sprintf("loop %d: %s", i, timeString))
@@ -101,20 +107,27 @@ func (m *MYSQL) Inject() error {
 }
 
 func (m *MYSQL) initTable() error {
-	_, table_check := m.db.Query(fmt.Sprintf("select * from %s;", m.config.TableName))
-	if table_check == nil {
-		if !m.config.OverWrite {
-			klog.Info("continue using exist table")
-			return nil
+	var err error
+	for _, database := range m.config.Databases {
+		_, err = m.db.Exec(fmt.Sprintf("use %s;", database))
+		if err != nil {
+			return err
 		}
-		// delete the old one
-		m.db.Exec(fmt.Sprintf("DROP TABLE IF EXISTS %s", m.config.TableName))
-	}
+		_, table_check := m.db.Query(fmt.Sprintf("select * from %s;", m.config.TableName))
+		if table_check == nil {
+			if !m.config.OverWrite {
+				klog.Info("continue using exist table")
+				return nil
+			}
+			// delete the old one
+			m.db.Exec(fmt.Sprintf("DROP TABLE IF EXISTS %s", m.config.TableName))
+		}
 
-	//create new table
-	_, err := m.db.Exec(fmt.Sprintf("CREATE TABLE %s (id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY, insert_time timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP)", m.config.TableName))
-	if err != nil {
-		return err
+		//create new table
+		_, err := m.db.Exec(fmt.Sprintf("CREATE TABLE %s (id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY, insert_time timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP)", m.config.TableName))
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil

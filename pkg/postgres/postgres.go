@@ -3,7 +3,7 @@ package postgres
 import (
 	"database/sql"
 	"fmt"
-	"strings"
+	"time"
 
 	"github.com/big-appled/db-injector/pkg/dbconfig"
 	_ "github.com/lib/pq"
@@ -13,6 +13,7 @@ import (
 type PG struct {
 	config dbconfig.Config
 	db     *sql.DB
+	dbList []*sql.DB
 }
 
 func (pg *PG) Init(dbConfig dbconfig.Config) error {
@@ -46,49 +47,83 @@ func (pg *PG) Connect() error {
 	return nil
 }
 
+func (pg *PG) Disconnect() error {
+	for _, pg.db = range pg.dbList {
+		pg.db.Close()
+	}
+	return nil
+}
+
 func (pg *PG) Inject() error {
 	var err error
-	klog.Info("postgres quiesce in progress...")
 
-	backupName := "test"
-	fastStartString := "true"
+	err = pg.Connect()
+	if err != nil {
+		klog.Error(err)
+		return err
+	}
+	err = pg.initTable()
+	if err != nil {
+		klog.Error(err)
+		return err
+	}
 
+	klog.Info("postgres inject in progress...")
+
+	var i int64
+	totalLoop := pg.config.NumLoops
+	if totalLoop == 0 {
+		totalLoop = int64(^uint64(0) >> 1)
+	}
+	klog.Info(fmt.Sprintf("total cycle is: %d", totalLoop))
+	for i = 0; i < totalLoop; i++ {
+		for _, pg.db = range pg.dbList {
+			_, err = pg.db.Exec(fmt.Sprintf("INSERT INTO %s (id) VALUES (%d);", pg.config.TableName, i))
+			if err != nil {
+				klog.Error(err)
+			}
+			timeString := time.Now().Format("2006-01-02 15:04:05")
+			klog.Info(fmt.Sprintf("loop %d: %s", i, timeString))
+			time.Sleep(1 * time.Second)
+		}
+	}
+	pg.Disconnect()
+	return nil
+}
+
+func (pg *PG) initTable() error {
+	var err error
 	connectionConfigStrings := pg.getConnectionString()
 	if len(connectionConfigStrings) == 0 {
 		return fmt.Errorf("no database found in %s", pg.config.Host)
 	}
-
-	for i := 0; i < len(connectionConfigStrings); i++ {
-		pg.db, err = sql.Open("postgres", connectionConfigStrings[i])
+	for _, dbconn := range connectionConfigStrings {
+		pg.db, err = sql.Open("postgres", dbconn)
 		if err != nil {
 			klog.Error(err, "cannot connect to postgres")
 			return err
 		}
+		pg.dbList = append(pg.dbList, pg.db)
 
-		queryStr := fmt.Sprintf("select pg_start_backup('%s', %s);", backupName, fastStartString)
+		queryStr := fmt.Sprintf("select * from %s;", pg.config.TableName)
 
-		result, queryErr := pg.db.Query(queryStr)
-
-		if queryErr != nil {
-			if strings.Contains(queryErr.Error(), "backup is already in progress") {
-				pg.db.Close()
-				continue
+		_, queryErr := pg.db.Query(queryStr)
+		if queryErr == nil { // table exists
+			if !pg.config.OverWrite {
+				klog.Info("continue using exist table")
+				return nil
 			}
-			klog.Error(queryErr, "could not start postgres backup")
-			return queryErr
+			// delete the old one
+			pg.db.Exec(fmt.Sprintf("DROP TABLE IF EXISTS %s", pg.config.TableName))
 		}
 
-		var snapshotLocation string
-		result.Next()
-
-		scanErr := result.Scan(&snapshotLocation)
-		if scanErr != nil {
-			klog.Error(scanErr, "Postgres backup apparently started but could not understand server response")
-			return scanErr
+		//create new table
+		_, err := pg.db.Exec(fmt.Sprintf("CREATE TABLE %s (id BIGINT NOT NULL PRIMARY KEY, insert_time timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP)", pg.config.TableName))
+		if err != nil {
+			return err
 		}
-		klog.Info(fmt.Sprintf("Successfully reach consistent recovery state at %s", snapshotLocation))
-		pg.db.Close()
 	}
+
 	return nil
 }
 
