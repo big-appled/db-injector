@@ -99,7 +99,7 @@ func (m *MYSQL) Inject() error {
 			}
 		}
 		timeString := time.Now().Format("2006-01-02 15:04:05")
-		klog.Info(fmt.Sprintf("loop %d: %s", i, timeString))
+		klog.Info(fmt.Sprintf("loop %d: %s", i+1, timeString))
 		time.Sleep(1 * time.Second)
 	}
 
