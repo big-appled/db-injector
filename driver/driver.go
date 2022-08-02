@@ -48,9 +48,9 @@ func NewManager(dbconfig *dbconfig.Config) (*DriverManager, error) {
 	}
 
 	CacheManager.dbconfig = *dbconfig
-	CacheManager.db.Init(CacheManager.dbconfig)
+	err = CacheManager.db.Init(CacheManager.dbconfig)
 
-	return &CacheManager, nil
+	return &CacheManager, err
 }
 
 func (d *DriverManager) DBConnect() error {

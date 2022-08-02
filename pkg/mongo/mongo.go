@@ -105,6 +105,7 @@ func (mg *MG) initTable() error {
 			}
 			if len(tables) > 0 { // table exists
 				if !mg.config.OverWrite {
+					klog.Info("continue using exist table")
 					return nil
 				} else {
 					// remove old table

@@ -3,6 +3,7 @@ package mysql
 import (
 	"database/sql"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/big-appled/db-injector/pkg/dbconfig"
@@ -11,8 +12,9 @@ import (
 )
 
 type MYSQL struct {
-	config dbconfig.Config
-	db     *sql.DB
+	config  dbconfig.Config
+	db      *sql.DB
+	startID int64
 }
 
 func (m *MYSQL) Init(dbConfig dbconfig.Config) error {
@@ -23,6 +25,7 @@ func (m *MYSQL) Init(dbConfig dbconfig.Config) error {
 		klog.Error(err, "")
 		return err
 	}
+	m.startID = 0
 	return nil
 }
 
@@ -87,7 +90,7 @@ func (m *MYSQL) Inject() error {
 		totalLoop = int64(^uint64(0) >> 1)
 	}
 	klog.Info(fmt.Sprintf("total cycle is: %d", totalLoop))
-	for i = 0; i < totalLoop; i++ {
+	for i = m.startID; i < totalLoop; i++ {
 		for _, database := range dbs {
 			_, err = m.db.Exec(fmt.Sprintf("use %s;", database))
 			if err != nil {
@@ -117,10 +120,21 @@ func (m *MYSQL) initTable() error {
 		if table_check == nil {
 			if !m.config.OverWrite {
 				klog.Info("continue using exist table")
+				r := m.db.QueryRow(fmt.Sprintf("select MAX(ID) from %s;", m.config.TableName))
+				col := make([]uint8, 0)
+				err = r.Scan(&col)
+				if err != nil {
+					return err
+				}
+				str := string(col)
+				m.startID, _ = strconv.ParseInt(str, 10, 64)
 				return nil
 			}
 			// delete the old one
-			m.db.Exec(fmt.Sprintf("DROP TABLE IF EXISTS %s", m.config.TableName))
+			_, err = m.db.Exec(fmt.Sprintf("DROP TABLE IF EXISTS %s", m.config.TableName))
+			if err != nil {
+				return err
+			}
 		}
 
 		//create new table

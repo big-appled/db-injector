@@ -17,7 +17,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/big-appled/db-injector/driver"
 	"github.com/big-appled/db-injector/pkg/dbconfig"
@@ -25,10 +24,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	klog "k8s.io/klog/v2"
-)
-
-const (
-	DefaultInterval = 250 * time.Millisecond
 )
 
 type DemoOptions struct {
@@ -71,7 +66,7 @@ func (d *DemoOptions) BindFlags(flags *pflag.FlagSet, c *cobra.Command) {
 	flags.StringVarP(&d.Password, "password", "p", "", "password")
 	c.MarkFlagRequired("database")
 	flags.Int64VarP(&d.NumLoops, "count", "c", 0, "number of loops to execute")
-	flags.BoolVarP(&d.OverWrite, "overwrite", "o", true, "overwrite old table data")
+	flags.BoolVarP(&d.OverWrite, "overwrite", "o", true, "overwrite old table data, to disable, -o=false")
 }
 
 func (d *DemoOptions) newDBConfig() *dbconfig.Config {

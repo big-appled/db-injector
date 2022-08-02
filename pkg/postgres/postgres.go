@@ -3,6 +3,7 @@ package postgres
 import (
 	"database/sql"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/big-appled/db-injector/pkg/dbconfig"
@@ -11,9 +12,10 @@ import (
 )
 
 type PG struct {
-	config dbconfig.Config
-	db     *sql.DB
-	dbList []*sql.DB
+	config  dbconfig.Config
+	db      *sql.DB
+	dbList  []*sql.DB
+	startID int64
 }
 
 func (pg *PG) Init(dbConfig dbconfig.Config) error {
@@ -76,7 +78,7 @@ func (pg *PG) Inject() error {
 		totalLoop = int64(^uint64(0) >> 1)
 	}
 	klog.Info(fmt.Sprintf("total cycle is: %d", totalLoop))
-	for i = 0; i < totalLoop; i++ {
+	for i = pg.startID; i < totalLoop; i++ {
 		for _, pg.db = range pg.dbList {
 			_, err = pg.db.Exec(fmt.Sprintf("INSERT INTO %s (id) VALUES (%d);", pg.config.TableName, i))
 			if err != nil {
@@ -87,7 +89,7 @@ func (pg *PG) Inject() error {
 			time.Sleep(1 * time.Second)
 		}
 	}
-	pg.Disconnect()
+	_ = pg.Disconnect()
 	return nil
 }
 
@@ -111,10 +113,22 @@ func (pg *PG) initTable() error {
 		if queryErr == nil { // table exists
 			if !pg.config.OverWrite {
 				klog.Info("continue using exist table")
+				r := pg.db.QueryRow(fmt.Sprintf("select MAX(ID) from %s;", pg.config.TableName))
+				col := make([]uint8, 0)
+				err = r.Scan(&col)
+				if err != nil {
+					return err
+				}
+				str := string(col)
+				pg.startID, _ = strconv.ParseInt(str, 10, 64)
+				pg.startID = pg.startID + 1
 				return nil
 			}
 			// delete the old one
-			pg.db.Exec(fmt.Sprintf("DROP TABLE IF EXISTS %s", pg.config.TableName))
+			_, err = pg.db.Exec(fmt.Sprintf("DROP TABLE IF EXISTS %s", pg.config.TableName))
+			if err != nil {
+				return err
+			}
 		}
 
 		//create new table
